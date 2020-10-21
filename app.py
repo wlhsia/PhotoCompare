@@ -26,15 +26,15 @@ import docx
 from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
 from io import StringIO
+import sqlite3
 
-from sql import User
 
-
-DATABASE = sys.path[0]+'/database.db'
 app = Flask(__name__)
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 CORS(app)
-user = User(DATABASE)
+
+dbPath = sys.path[0]+'/database.db'
+cx = sqlite3.connect(dbPath, check_same_thread=False)
 
 @app.route("/login", methods=['POST'])
 def login():
@@ -43,24 +43,67 @@ def login():
         data = request.form.to_dict()
         username = data.get("username")
         password = data.get("password")
-        pwd = user.getUserPassword(username)
+        cu = cx.cursor()
+        try:
+            cu.execute("select password from 'User' where username=\'" + username + "\'")
+            pwd = cu.fetchone()[0]
+        except:
+            pwd = None
+        cu.close()
         if not pwd:
             return "-1"
-        elif password != pwd[0]:
+        elif password != pwd:
             return "0"
-        elif username == "admin" and password == pwd[0]:
+        elif username == "admin" and password == pwd:
             return "admin"
         else:
             return "1"
     else:
         return jsonify(response)
 
-@app.route("/admin", methods=["GET"])
-def admin():
+@app.route("/users", methods=["GET" , "POST"])
+def users():
+    response_object = {'status': 'success'}
     if request.method == 'GET':
-        allUser = user.getAllUser()
-        res = json.dumps(allUser)
-        return res
+        cu = cx.cursor()
+        cu.execute("select username, password from 'User'")
+        data = cu.fetchall()
+        cu.close()
+        userList = []
+        for d in data:
+            userList.append({"username": d[0], "password": d[1]})
+        response_object['users'] = userList
+    else:
+        post_data = request.get_json()
+        username = post_data.get('username')
+        password = post_data.get('password')
+        cu = cx.cursor()
+        cu.execute("insert into User values(null, '" + username + "', '" + password + "')")
+        cu.close()
+        cx.commit()
+        response_object['message'] = 'User added!'
+
+    return jsonify(response_object)
+
+@app.route('/user/<user_id>', methods=['PUT', 'DELETE'])
+def user(user_id):
+    response_object = {'status': 'success'}
+    if request.method == 'PUT':
+        post_data = request.get_json()
+        username = post_data.get('username')
+        password = post_data.get('password')
+        cu = cx.cursor()
+        cu.execute("UPDATE User SET password = '" + password + "' WHERE username = '" + username + "'" )
+        cu.close()
+        cx.commit()
+        response_object['message'] = 'User updated!'
+    if request.method == 'DELETE':
+        cu = cx.cursor()
+        cu.execute("DELETE FROM User WHERE username = '" + user_id + "'")
+        cu.close()
+        cx.commit()
+        response_object['message'] = 'User removed!'
+    return jsonify(response_object)
 
 
 @app.route('/api/upload', methods=['POST'])
