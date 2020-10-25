@@ -7,7 +7,7 @@ import uuid
 import cv2
 import numpy as np
 import pandas as pd
-from pdf2image import convert_from_path
+# from pdf2image import convert_from_path
 from sklearn.cluster import KMeans
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, Alignment, Border, Side
@@ -111,6 +111,33 @@ def user(user_id):
     return jsonify(response_object)
 
 
+@app.route('/imgs', methods=["GET"])
+def imgs():
+    response_object = {'status': 'success'}
+    if request.method == 'GET':
+        cu = cx.cursor()
+        cu.execute("select imageName, uploadUser from 'Image'")
+        data = cu.fetchall()
+        cu.close()
+        imgList = []
+        for d in data:
+            imgList.append({"imageName": d[0], "uploadUser": d[1]})
+        response_object['images'] = imgList
+    return jsonify(response_object)
+
+
+@app.route('/delimg/<img>', methods=['DELETE'])
+def delimg(img):
+    response_object = {'status': 'success'}
+    if request.method == 'DELETE':
+        cu = cx.cursor()
+        cu.execute("DELETE FROM Image WHERE imageName = '" + img + "'")
+        cu.close()
+        cx.commit()
+        response_object['message'] = 'Image removed!'
+    return jsonify(response_object)
+
+
 @app.route('/api/upload', methods=['POST'])
 def upload():
     response = {"success": False}
@@ -174,9 +201,11 @@ def download():
 @app.route('/updatedb', methods=['POST'])
 def updatedb():
     dcit_request = request.get_json()
+    username = dcit_request['username']
     cu = cx.cursor()
     for img in dcit_request['imgs']:
-        cu.execute("insert into Image values(null, '" + img + "')")
+        cu.execute("insert into Image values(null, '" + img + "', '" +
+                   username + "') WHERE imageName NOT IN (SELECT imageName FROM Image)")
     cu.close()
     cx.commit()
     response = {"success": True}
@@ -259,9 +288,6 @@ def compare():
                 if imgName1 not in duplicateImgs:
                     duplicateImgs.append(imgName1)
 
-    # wb = load_workbook(filename= resultPath)
-    # sht = wb['工作表1']
-    # wb.remove(sht)
     wb = Workbook()
     wb.create_sheet("工作表1", 0)
     sht = wb['工作表1']
@@ -356,13 +382,21 @@ def compare():
                 resizeImgsPath, item['imgName2'])), "D"+str(i))
             i = i + 1
 
-    resultFileName = datetime.today().strftime("%Y%m%d") + '_' + proj_num + '_比對結果.xlsx'
+    resultFileName = datetime.today().strftime(
+        "%Y%m%d") + '_' + proj_num + '_比對結果.xlsx'
     wb.save('./results/' + resultFileName)
     wb.close()
 
     s1 = set(imgsName)
     s2 = set(duplicateImgs)
     nonDuplicateImgs = list(s1.symmetric_difference(s2))
+
+    cu = cx.cursor()
+    for file in files:
+        cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
+            "%Y/%m/%d %H:%m") + "', '" + file + "', '" + dcit_request['username'] + "' )")
+    cu.close()
+    cx.commit()
 
     response = {
         "success": True,
