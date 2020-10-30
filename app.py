@@ -69,20 +69,22 @@ def users():
     response_object = {'status': 'success'}
     if request.method == 'GET':
         cu = cx.cursor()
-        cu.execute("select username, password from 'User'")
+        cu.execute("select username, password, remark from 'User'")
         data = cu.fetchall()
         cu.close()
         userList = []
         for d in data:
-            userList.append({"username": d[0], "password": d[1]})
+            userList.append(
+                {"username": d[0], "password": d[1], "remark": d[2]})
         response_object['users'] = userList
     if request.method == 'POST':
         post_data = request.get_json()
         username = post_data.get('username')
         password = post_data.get('password')
+        remark = post_data.get('remark')
         cu = cx.cursor()
-        cu.execute("insert into User values(null, '" +
-                   username + "', '" + password + "')")
+        cu.execute("insert into User values(null, '" + username +
+                   "', '" + password + "', '" + remark + "')")
         cu.close()
         cx.commit()
         response_object['message'] = 'User added!'
@@ -97,9 +99,10 @@ def user(user_id):
         post_data = request.get_json()
         username = post_data.get('username')
         password = post_data.get('password')
+        remark = post_data.get('remark')
         cu = cx.cursor()
         cu.execute("UPDATE User SET password = '" + password +
-                   "' WHERE username = '" + username + "'")
+                   "', remark = '" + remark + "' WHERE username = '" + username + "'")
         cu.close()
         cx.commit()
         response_object['message'] = 'User updated!'
@@ -221,8 +224,15 @@ def updatedb():
     username = dcit_request['username']
     cu = cx.cursor()
     for imgData in dcit_request['imgsData']:
-        cu.execute("insert into Image values(null, '" +
-                   imgData['imgName'] + "', '" + imgData['pHash'] + "', '" + imgData['group'] + "')")
+        cu.execute("SELECT * FROM Image WHERE imageName = '" +
+                   imgData['imgName'] + "'")
+        data = cu.fetchall()
+        if len(data) == 0:
+            cu.execute("insert into Image values(null, '" +
+                       imgData['imgName'] + "', '" + imgData['pHash'] + "', '" + imgData['group'] + "', '" + username + "')")
+        else:
+            cu.execute("update Image SET pHash = '" + imgData['pHash'] + "', g = '" + imgData['group'] +
+                       "', uploadUser = '" + username + "' WHERE imageName like '" + imgData['imgName'] + "'")
     cu.close()
     cx.commit()
     response = {"success": True}
@@ -326,9 +336,9 @@ def compare():
     cu = cx.cursor()
     for group in set(imgsDataDF.group):
         imgsNm = imgsDataDF.query("group == {}".format(group)).imageName
-        # cu.execute(
-        #     "select imageName, pHash, group from Image WHERE group like '" + str(group) + "'")
-        cu.execute("select imageName, pHash from Image")
+        cu.execute(
+            "select imageName, pHash from Image WHERE g like '" + str(group) + "'")
+        # cu.execute("select imageName, pHash, g from Image")
         data = cu.fetchall()
         dbImages = []
         for d in data:
@@ -341,10 +351,11 @@ def compare():
                 distance = bin(pHash1 ^ pHash2).count('1')
                 similary = 1 - distance / 1024
                 if similary > 0.9:
-                    result2.append(
-                        {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
                     if imgName1 not in duplicateImgs:
-                        duplicateImgs.append(imgName1)
+                        result2.append(
+                            {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
+                        if imgName1 not in duplicateImgs:
+                            duplicateImgs.append(imgName1)
     cu.close()
     # result2 = []
     # cu = cx.cursor()
@@ -462,7 +473,7 @@ def compare():
             i = i + 1
 
     resultFileName = datetime.today().strftime(
-        "%Y%m%d") + '_' + proj_num + '_比對結果.xlsx'
+        "%Y%m%d%H%M") + '_' + proj_num + '_比對結果.xlsx'
     wb.save('./results/' + resultFileName)
     wb.close()
 
@@ -480,7 +491,7 @@ def compare():
     cu = cx.cursor()
     for file in files:
         cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
-            "%Y/%m/%d %H:%m") + "', '" + file + "', '" + dcit_request['username'] + "' )")
+            "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "' )")
     cu.close()
     cx.commit()
 
