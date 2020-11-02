@@ -25,7 +25,9 @@ from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
 from io import StringIO
 import sqlite3
-import imagehash
+import keras.backend.tensorflow_backend as KTF
+import tensorflow as tf
+
 
 from unet import *
 
@@ -36,14 +38,23 @@ CORS(app)
 dbPath = sys.path[0]+'/database.db'
 cx = sqlite3.connect(dbPath, check_same_thread=False)
 
+pdfsPath = 'D:\\project\\PhotoCompare\\backend\\pdfs'
+wordsPath = 'D:\\project\\PhotoCompare\\backend\\words'
+excelsPath = 'D:\\project\\PhotoCompare\\backend\\excels'
+rawImgsPath = 'D:\\project\\PhotoCompare\\backend\\raw_imgs'
+resizeImgsPath = 'D:\\project\\PhotoCompare\\backend\\resize_imgs'
+modelsPath = 'D:\\project\\PhotoCompare\\backend\\models'
+resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
+
 
 @app.route("/login", methods=['POST'])
 def login():
     response = {"success": False}
-    if request.method == 'POST' and request.form.get('username') and request.form.get('password'):
-        data = request.form.to_dict()
-        username = data.get("username")
-        password = data.get("password")
+    # if request.method == 'POST' and request.form.get('username') and request.form.get('password'):
+    if request.method == 'POST':
+        dcit_request = request.get_json()
+        username = dcit_request['username']
+        password = dcit_request['password']
         cu = cx.cursor()
         try:
             cu.execute(
@@ -214,7 +225,7 @@ def uploadList():
 def download():
     dcit_request = request.get_json()
     resultFileName = dcit_request['resultFileName']
-    f = open("./results/" + resultFileName, 'rb')
+    f = open(os.path.join(resultsPath, resultFileName), 'rb')
     return f.read()
 
 
@@ -237,13 +248,6 @@ def updatedb():
     cx.commit()
     response = {"success": True}
     return jsonify(response)
-
-
-pdfsPath = './pdfs'
-wordsPath = './words'
-excelsPath = './excels'
-rawImgsPath = './raw_imgs'
-resizeImgsPath = './resize_imgs'
 
 
 @app.route('/api/compare', methods=['POST'])
@@ -292,7 +296,7 @@ def compare():
     shutil.rmtree(imgsPath)
 
     # 將上傳相片分群
-    kmeans = joblib.load(os.path.join('./models', 'KMeans_model.m'))
+    kmeans = joblib.load(os.path.join(modelsPath, 'KMeans_model.m'))
     pred = kmeans.predict(list(imgsDataDF.fingerprint))
     imgsDataDF['group'] = pred
 
@@ -474,7 +478,7 @@ def compare():
 
     resultFileName = datetime.today().strftime(
         "%Y%m%d%H%M") + '_' + proj_num + '_比對結果.xlsx'
-    wb.save('./results/' + resultFileName)
+    wb.save(os.path.join(resultsPath, resultFileName))
     wb.close()
 
     s1 = set(imgsName)
@@ -553,10 +557,20 @@ def getExcelImgs(folderPath, file, imgsPath):
             imgFileName = '_'.join([file, sheet, str(i+1)])+'.jpg'
             img.save(os.path.join(imgsPath, imgFileName))
 
+# graph = tf.get_default_graph()
+# model = unet()
+# model.load_weights(os.path.join('./models', 'unet.hdf5'))
+
+
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.5  # 設定使用多少%的記憶體
+sess = tf.Session(config=config)
+KTF.set_session(sess)
 
 graph = tf.get_default_graph()
 model = unet()
-model.load_weights(os.path.join('./models', 'unet.hdf5'))
+# model.load_weights(os.path.join('./models', 'unet.hdf5'))
+model.load_weights('D:\\project\\PhotoCompare\\backend\\models\\unet.hdf5')
 
 
 def getPDFImgs(folderPath, file, imgsPath):
@@ -650,4 +664,5 @@ def getPDFImgs(folderPath, file, imgsPath):
                 cv2.imwrite(os.path.join(imgsPath, dst_filenm), img_crop)
 
 
-app.run()
+if __name__ == "__main__":
+    app.run(debug=False)
