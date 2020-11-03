@@ -92,6 +92,7 @@ def users():
         post_data = request.get_json()
         username = post_data.get('username')
         password = post_data.get('password')
+        remark = ''
         remark = post_data.get('remark')
         cu = cx.cursor()
         cu.execute("insert into User values(null, '" + username +
@@ -110,6 +111,7 @@ def user(user_id):
         post_data = request.get_json()
         username = post_data.get('username')
         password = post_data.get('password')
+        remark = ''
         remark = post_data.get('remark')
         cu = cx.cursor()
         cu.execute("UPDATE User SET password = '" + password +
@@ -158,7 +160,7 @@ def uploadrecord():
     response_object = {'status': 'success'}
     if request.method == 'GET':
         cu = cx.cursor()
-        cu.execute("select time, fileName, uploadUser, result from 'UploadRecord'")
+        cu.execute("select time, fileName, uploadUser, result from 'UploadRecord' order by time DESC")
         data = cu.fetchall()
         cu.close()
         cx.commit()
