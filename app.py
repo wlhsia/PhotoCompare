@@ -158,13 +158,13 @@ def uploadrecord():
     response_object = {'status': 'success'}
     if request.method == 'GET':
         cu = cx.cursor()
-        cu.execute("select time, fileName, uploadUser from 'UploadRecord'")
+        cu.execute("select time, fileName, uploadUser, result from 'UploadRecord'")
         data = cu.fetchall()
         cu.close()
         cx.commit()
         list = []
         for d in data:
-            list.append({"time": d[0], "fileName": d[1], "uploadUser": d[2]})
+            list.append({"time": d[0], "fileName": d[1], "uploadUser": d[2], 'result': d[3]})
         response_object['uploadRecordList'] = list
     return jsonify(response_object)
 
@@ -495,7 +495,7 @@ def compare():
     cu = cx.cursor()
     for file in files:
         cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
-            "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "' )")
+            "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "', '" + resultFileName + "')")
     cu.close()
     cx.commit()
 
