@@ -25,11 +25,11 @@ from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
 from io import StringIO
 import sqlite3
-import keras.backend.tensorflow_backend as KTF
-import tensorflow as tf
+# import keras.backend.tensorflow_backend as KTF
+# import tensorflow as tf
 
 
-from unet import *
+# from unet import *
 
 app = Flask(__name__)
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -38,11 +38,13 @@ CORS(app)
 dbPath = sys.path[0]+'/database.db'
 cx = sqlite3.connect(dbPath, check_same_thread=False)
 
+# 絕對路徑自行設定
 pdfsPath = 'D:\\project\\PhotoCompare\\backend\\pdfs'
 wordsPath = 'D:\\project\\PhotoCompare\\backend\\words'
 excelsPath = 'D:\\project\\PhotoCompare\\backend\\excels'
 rawImgsPath = 'D:\\project\\PhotoCompare\\backend\\raw_imgs'
-resizeImgsPath = 'D:\\project\\PhotoCompare\\backend\\resize_imgs'
+resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\public\\static\\resize_imgs'
+# resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
 modelsPath = 'D:\\project\\PhotoCompare\\backend\\models'
 resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
 
@@ -50,7 +52,6 @@ resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
 @app.route("/login", methods=['POST'])
 def login():
     response = {"success": False}
-    # if request.method == 'POST' and request.form.get('username') and request.form.get('password'):
     if request.method == 'POST':
         dcit_request = request.get_json()
         username = dcit_request['username']
@@ -160,13 +161,15 @@ def uploadrecord():
     response_object = {'status': 'success'}
     if request.method == 'GET':
         cu = cx.cursor()
-        cu.execute("select time, fileName, uploadUser, result from 'UploadRecord' order by time DESC")
+        cu.execute(
+            "select time, fileName, uploadUser, result from 'UploadRecord' order by time DESC")
         data = cu.fetchall()
         cu.close()
         cx.commit()
         list = []
         for d in data:
-            list.append({"time": d[0], "fileName": d[1], "uploadUser": d[2], 'result': d[3]})
+            list.append({"time": d[0], "fileName": d[1],
+                         "uploadUser": d[2], 'result': d[3]})
         response_object['uploadRecordList'] = list
     return jsonify(response_object)
 
@@ -280,36 +283,29 @@ def compare():
         fileName = str(file).split('_')[0]
         if fileName not in filesName:
             filesName.append(fileName)
-    shutil.rmtree(folderPath)
 
-    imgsDataDF = pd.DataFrame(
-        columns=['imageName', 'pHash', 'fingerprint', 'group'])
     # 將相片轉為特徵
     imgsName = os.listdir(imgsPath)
-    imgsData = {}
+    imgsPHash = {}
+    imgsFingerprint = {}
     for imgName in imgsName:
         img = Image.open(os.path.join(imgsPath, imgName))
         pHash = phash(img)
+        imgsPHash[imgName] = pHash
         fingerprint = [bool(int(d)) for d in str(bin(pHash))[2:].zfill(1024)]
-        imgsDataDF = imgsDataDF.append(
-            {'imageName': imgName, 'pHash': pHash, 'fingerprint': fingerprint}, ignore_index=True)
+        imgsFingerprint[imgName] = fingerprint
         shutil.move(os.path.join(imgsPath, imgName),
                     os.path.join(rawImgsPath, imgName))
+
+    shutil.rmtree(folderPath)
     shutil.rmtree(imgsPath)
-
-    # 將上傳相片分群
-    kmeans = joblib.load(os.path.join(modelsPath, 'KMeans_model.m'))
-    pred = kmeans.predict(list(imgsDataDF.fingerprint))
-    imgsDataDF['group'] = pred
-
-    imgsDataDict = imgsDataDF.set_index('imageName').T.to_dict('list')
 
     # 上傳相片倆倆比對
     result1 = []
     duplicateImgs = []
     for imgName1, imgName2 in itertools.combinations(imgsName, 2):
-        pHash1 = imgsDataDict[imgName1][0]
-        pHash2 = imgsDataDict[imgName2][0]
+        pHash1 = imgsPHash[imgName1]
+        pHash2 = imgsPHash[imgName2]
         distance = bin(pHash1 ^ pHash2).count('1')
         similary = 1 - distance / 1024
         if similary > 0.9:
@@ -317,40 +313,30 @@ def compare():
                 result1.append(
                     {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
                 duplicateImgs.append(imgName2)
-    # imgsName = os.listdir(imgsPath)
-    # result1 = []
-    # duplicateImgs = []
-    # for i, (imgName1, imgName2) in enumerate(itertools.combinations(imgsName, 2)):
-    #     imghash1 = imagehash.phash(Image.open(
-    #         os.path.join(imgsPath, imgName1)))
-    #     imghash2 = imagehash.phash(Image.open(
-    #         os.path.join(imgsPath, imgName2)))
-    #     similary = 1 - (imghash1 - imghash2)/len(imghash1.hash)**2
-    #     if similary > 0.9:
-    #         if imgName1 not in duplicateImgs:
-    #             result1.append(
-    #                 {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
-    #             duplicateImgs.append(imgName2)
 
-    # for imgName in imgsName:
-    #     shutil.move(os.path.join(imgsPath, imgName),
-    #                 os.path.join(rawImgsPath, imgName))
-    # shutil.rmtree(imgsPath)
+
+    # 將上傳相片分群
+    kmeans = joblib.load(os.path.join(modelsPath, 'KMeans_model.m'))
+    pred = kmeans.predict(list(imgsFingerprint.values()))
+    imgsGroup = dict(zip(list(imgsFingerprint.keys()), pred))
+    imgsGroupDF = pd.DataFrame(data = list(imgsFingerprint.keys()),columns = ['imageName'])
+    imgsGroupDF['group'] = pred
+
+
 
     # 上傳相片與資料庫相片比對
     result2 = []
     cu = cx.cursor()
-    for group in set(imgsDataDF.group):
-        imgsNm = imgsDataDF.query("group == {}".format(group)).imageName
+    for group in set(imgsGroupDF.group):
+        imgsNm = imgsGroupDF.query("group == {}".format(group)).imageName
         cu.execute(
             "select imageName, pHash from Image WHERE g like '" + str(group) + "'")
-        # cu.execute("select imageName, pHash, g from Image")
         data = cu.fetchall()
         dbImages = []
         for d in data:
             dbImages.append([d[0], d[1]])
         for imgName1 in imgsNm:
-            pHash1 = imgsDataDict[imgName1][0]
+            pHash1 = imgsPHash[imgName1]
             for dbImage in dbImages:
                 imgName2 = dbImage[0]
                 pHash2 = int(dbImage[1])
@@ -363,26 +349,6 @@ def compare():
                         if imgName1 not in duplicateImgs:
                             duplicateImgs.append(imgName1)
     cu.close()
-    # result2 = []
-    # cu = cx.cursor()
-    # cu.execute("select imageName from 'Image'")
-    # data = cu.fetchall()
-    # cu.close()
-    # dbImgsName = []
-    # for d in data:
-    #     dbImgsName.append(d[0])
-    # for imgName1 in imgsName:
-    #     imghash1 = imagehash.phash(Image.open(
-    #         os.path.join(rawImgsPath, imgName1)))
-    #     for imgName2 in dbImgsName:
-    #         imghash2 = imagehash.phash(Image.open(
-    #             os.path.join(rawImgsPath, imgName2)))
-    #         similary = 1 - (imghash1 - imghash2)/len(imghash1.hash)**2
-    #         if similary > 0.9:
-    #             result2.append(
-    #                 {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
-    #             if imgName1 not in duplicateImgs:
-    #                 duplicateImgs.append(imgName1)
 
     wb = Workbook()
     wb.create_sheet("工作表1", 0)
@@ -489,8 +455,8 @@ def compare():
 
     nonDuplicateImgsData = []
     for nonDuplicateImg in nonDuplicateImgs:
-        pHash = str(imgsDataDict[nonDuplicateImg][0])
-        group = str(imgsDataDict[nonDuplicateImg][2])
+        pHash = str(imgsPHash[nonDuplicateImg])
+        group = str(imgsGroup[nonDuplicateImg])
         nonDuplicateImgsData.append(
             {'imgName': nonDuplicateImg, 'pHash': pHash, 'group': group})
 
@@ -559,20 +525,17 @@ def getExcelImgs(folderPath, file, imgsPath):
             imgFileName = '_'.join([file, sheet, str(i+1)])+'.jpg'
             img.save(os.path.join(imgsPath, imgFileName))
 
+
+
+# config = tf.ConfigProto()
+# config.gpu_options.per_process_gpu_memory_fraction = 0.5  # 設定使用多少%的記憶體
+# sess = tf.Session(config=config)
+# KTF.set_session(sess)
+
 # graph = tf.get_default_graph()
 # model = unet()
-# model.load_weights(os.path.join('./models', 'unet.hdf5'))
-
-
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.5  # 設定使用多少%的記憶體
-sess = tf.Session(config=config)
-KTF.set_session(sess)
-
-graph = tf.get_default_graph()
-model = unet()
-# model.load_weights(os.path.join('./models', 'unet.hdf5'))
-model.load_weights('D:\\project\\PhotoCompare\\backend\\models\\unet.hdf5')
+# # model.load_weights(os.path.join('./models', 'unet.hdf5'))
+# model.load_weights('D:\\project\\PhotoCompare\\backend\\models\\unet.hdf5')
 
 
 def getPDFImgs(folderPath, file, imgsPath):
@@ -586,22 +549,24 @@ def getPDFImgs(folderPath, file, imgsPath):
             rgb = cv2.cvtColor(pageImg, cv2.COLOR_BGR2RGB)
             hsv = cv2.cvtColor(pageImg, cv2.COLOR_BGR2HSV)
             gray = cv2.cvtColor(pageImg, cv2.COLOR_BGR2GRAY)
+
             # unet
-            img = cv2.resize(gray, (256, 256))
-            img = np.reshape(img, img.shape+(1,)) if (not False) else img
-            img = np.reshape(img, (1,)+img.shape)
-            with graph.as_default():
-                result = model.predict(img)
-            result = result[0]
-            img = labelVisualize(
-                2, COLOR_DICT, result) if False else result[:, :, 0]
-            img = cv2.resize(img, (pageImg.shape[1], pageImg.shape[0]))
-            img = (img*255).astype(np.uint8)
-            (thresh, im_bw) = cv2.threshold(img, 0.05, 255, 0)
-            contours, hierarchy = cv2.findContours(
-                im_bw, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            unet_conts = [
-                contour for contour in contours if cv2.contourArea(contour) > 500000]
+            # img = cv2.resize(gray, (256, 256))
+            # img = np.reshape(img, img.shape+(1,)) if (not False) else img
+            # img = np.reshape(img, (1,)+img.shape)
+            # with graph.as_default():
+            #     result = model.predict(img)
+            # result = result[0]
+            # img = labelVisualize(
+            #     2, COLOR_DICT, result) if False else result[:, :, 0]
+            # img = cv2.resize(img, (pageImg.shape[1], pageImg.shape[0]))
+            # img = (img*255).astype(np.uint8)
+            # (thresh, im_bw) = cv2.threshold(img, 0.05, 255, 0)
+            # contours, hierarchy = cv2.findContours(
+            #     im_bw, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            # unet_conts = [
+            #     contour for contour in contours if cv2.contourArea(contour) > 500000]
+
             # sat
             # 取出飽和度
             saturation = hsv[:, :, 1]
@@ -617,14 +582,16 @@ def getPDFImgs(folderPath, file, imgsPath):
             sat_conts = [
                 contour for contour in contours if cv2.contourArea(contour) > 500000]
 
-            if len(unet_conts) == 6:
-                conts = unet_conts
-            elif len(sat_conts) == 6:
-                conts = sat_conts
-            elif len(sat_conts) > len(unet_conts):
-                conts = sat_conts
-            else:
-                conts = unet_conts
+            # if len(unet_conts) == 6:
+            #     conts = unet_conts
+            # elif len(sat_conts) == 6:
+            #     conts = sat_conts
+            # elif len(sat_conts) > len(unet_conts):
+            #     conts = sat_conts
+            # else:
+            #     conts = unet_conts
+
+            conts = sat_conts
 
             sortY_conts = sorted([cont for cont in conts],
                                  key=lambda x: x[0][0][1], reverse=False)
