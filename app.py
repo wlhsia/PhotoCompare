@@ -173,6 +173,20 @@ def uploadrecord():
         response_object['uploadRecordList'] = list
     return jsonify(response_object)
 
+@app.route('/deletrecord', methods=['POST'])
+def deleterecord():
+    response_object = {'status': 'success'}
+    if request.method == 'POST':
+        post_data = request.get_json()
+        fileName = post_data.get('fileName')
+        result = post_data.get('result')
+        os.remove(os.path.join(resultsPath, result))
+        cu = cx.cursor()
+        cu.execute("DELETE FROM UploadRecord WHERE result = '" + result + "'")
+        cu.close()
+        cx.commit()
+    return jsonify(response_object)
+
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
