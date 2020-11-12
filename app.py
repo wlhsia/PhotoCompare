@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
@@ -284,15 +284,15 @@ def compare():
     for file in files:
         if str(file).split('.')[-1].lower() == 'docx':
             getWordImgs(folderPath, file, imgsPath)
-            shutil.move(os.path.join(folderPath, file),
+            shutil.copy(os.path.join(folderPath, file),
                         os.path.join(wordsPath, file))
         elif str(file).split('.')[-1].lower() == 'xlsx':
             getExcelImgs(folderPath, file, imgsPath)
-            shutil.move(os.path.join(folderPath, file),
+            shutil.copy(os.path.join(folderPath, file),
                         os.path.join(excelsPath, file))
         elif str(file).split('.')[-1].lower() == 'pdf':
             getPDFImgs(folderPath, file, imgsPath)
-            shutil.move(os.path.join(folderPath, file),
+            shutil.copy(os.path.join(folderPath, file),
                         os.path.join(pdfsPath, file))
         fileName = str(file).split('_')[0]
         if fileName not in filesName:
@@ -554,6 +554,7 @@ def getExcelImgs(folderPath, file, imgsPath):
 
 def getPDFImgs(folderPath, file, imgsPath):
     with tempfile.TemporaryDirectory(dir='D:/temp') as path:
+
         pageImgs = convert_from_path(os.path.join(
             folderPath, file), output_folder=path, dpi=600)
         for pageNumber, pageImg in enumerate(pageImgs):
@@ -608,10 +609,10 @@ def getPDFImgs(folderPath, file, imgsPath):
             conts = sat_conts
 
             sortY_conts = sorted([cont for cont in conts],
-                                 key=lambda x: x[0][0][1], reverse=False)
+                                key=lambda x: x[0][0][1], reverse=False)
             up_conts = sortY_conts[:3]
             up_conts = sorted([cont for cont in up_conts],
-                              key=lambda x: x[0][0][0], reverse=False)
+                            key=lambda x: x[0][0][0], reverse=False)
             down_conts = sortY_conts[3:]
             down_conts = sorted([cont for cont in down_conts],
                                 key=lambda x: x[0][0][0], reverse=False)
