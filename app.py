@@ -25,11 +25,6 @@ from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
 from io import StringIO
 import sqlite3
-# import keras.backend.tensorflow_backend as KTF
-# import tensorflow as tf
-
-
-# from unet import *
 
 app = Flask(__name__)
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -173,6 +168,7 @@ def uploadrecord():
         response_object['uploadRecordList'] = list
     return jsonify(response_object)
 
+
 @app.route('/deletrecord', methods=['POST'])
 def deleterecord():
     response_object = {'status': 'success'}
@@ -268,18 +264,14 @@ def updatedb():
     response = {"success": True}
     return jsonify(response)
 
-
-@app.route('/api/compare', methods=['POST'])
-def compare():
-
+@app.route('/api/getImg', methods=['POST'])
+def getImg():
     dcit_request = request.get_json()
     folderPath = dcit_request['folderPath']
     files = os.listdir(folderPath)
     imgsPath = folderPath+'_imgs'
     if not os.path.isdir(imgsPath):
         os.mkdir(imgsPath)
-
-    # 擷取相片
     filesName = []
     for file in files:
         if str(file).split('.')[-1].lower() == 'docx':
@@ -297,6 +289,44 @@ def compare():
         fileName = str(file).split('_')[0]
         if fileName not in filesName:
             filesName.append(fileName)
+
+    imgsNum = len(os.listdir(imgsPath))
+    
+    response = {
+        "success": True,
+        "imgsPath": imgsPath, 
+        "imgsNum": imgsNum
+    }
+    return jsonify(response)
+
+@app.route('/api/compare', methods=['POST'])
+def compare():
+
+    # dcit_request = request.get_json()
+    # folderPath = dcit_request['folderPath']
+    # files = os.listdir(folderPath)
+    # imgsPath = folderPath+'_imgs'
+    # if not os.path.isdir(imgsPath):
+    #     os.mkdir(imgsPath)
+
+    # # 擷取相片
+    # filesName = []
+    # for file in files:
+    #     if str(file).split('.')[-1].lower() == 'docx':
+    #         getWordImgs(folderPath, file, imgsPath)
+    #         shutil.copy(os.path.join(folderPath, file),
+    #                     os.path.join(wordsPath, file))
+    #     elif str(file).split('.')[-1].lower() == 'xlsx':
+    #         getExcelImgs(folderPath, file, imgsPath)
+    #         shutil.copy(os.path.join(folderPath, file),
+    #                     os.path.join(excelsPath, file))
+    #     elif str(file).split('.')[-1].lower() == 'pdf':
+    #         getPDFImgs(folderPath, file, imgsPath)
+    #         shutil.copy(os.path.join(folderPath, file),
+    #                     os.path.join(pdfsPath, file))
+    #     fileName = str(file).split('_')[0]
+    #     if fileName not in filesName:
+    #         filesName.append(fileName)
 
     # 將相片轉為特徵
     imgsName = os.listdir(imgsPath)
@@ -328,15 +358,13 @@ def compare():
                     {'imgName1': imgName1, 'imgName2': imgName2, 'similary': similary})
                 duplicateImgs.append(imgName2)
 
-
     # 將上傳相片分群
     kmeans = joblib.load(os.path.join(modelsPath, 'KMeans_model.m'))
     pred = kmeans.predict(list(imgsFingerprint.values()))
     imgsGroup = dict(zip(list(imgsFingerprint.keys()), pred))
-    imgsGroupDF = pd.DataFrame(data = list(imgsFingerprint.keys()),columns = ['imageName'])
+    imgsGroupDF = pd.DataFrame(
+        data=list(imgsFingerprint.keys()), columns=['imageName'])
     imgsGroupDF['group'] = pred
-
-
 
     # 上傳相片與資料庫相片比對
     result2 = []
@@ -503,30 +531,35 @@ def phash(img):
 def getWordImgs(folderPath, file, imgsPath):
     doc = docx.Document(os.path.join(folderPath, file))
     tables = doc.tables
-    for page, table in enumerate(tables):
+    page = 0
+    for table in tables:
         xml_str = table._element.xml
         root = ET.fromstring(xml_str)
         namespaces = dict([node for _, node in ElementTree.iterparse(
             StringIO(xml_str), events=['start-ns'])])
         i = 1
-        for blip_elem in root.findall('.//a:blip', namespaces):
-            embed_attr = blip_elem.get(
-                "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
-            img = doc.part.related_parts[embed_attr]
-            page_num = (str(page+1)).zfill(3)
-            dst_filenm = '_'.join([file, 'Page'+page_num, str(i)])+'.jpg'
-            with open(os.path.join(imgsPath, dst_filenm), 'wb') as f:
-                f.write(img.blob)
-            i += 1
-        for imagedata_elem in root.findall('.//v:imagedata', namespaces):
-            id_attr = imagedata_elem.get(
-                "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
-            img = doc.part.related_parts[id_attr]
-            page_num = (str(page+1)).zfill(3)
-            dst_filenm = '_'.join([file, 'Page'+page_num, str(i)])+'.jpg'
-            with open(os.path.join(imgsPath, dst_filenm), 'wb') as f:
-                f.write(img.blob)
-            i += 1
+        try:
+            for blip_elem in root.findall('.//a:blip', namespaces):
+                embed_attr = blip_elem.get(
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+                img = doc.part.related_parts[embed_attr]
+                page_num = (str(page+1)).zfill(3)
+                dst_filenm = '_'.join([file, 'Page'+page_num, str(i)])+'.jpg'
+                with open(os.path.join(imgsPath, dst_filenm), 'wb') as f:
+                    f.write(img.blob)
+                i += 1
+            for imagedata_elem in root.findall('.//v:imagedata', namespaces):
+                id_attr = imagedata_elem.get(
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                img = doc.part.related_parts[id_attr]
+                page_num = (str(page+1)).zfill(3)
+                dst_filenm = '_'.join([file, 'Page'+page_num, str(i)])+'.jpg'
+                with open(os.path.join(imgsPath, dst_filenm), 'wb') as f:
+                    f.write(img.blob)
+                i += 1
+            page += 1
+        except:
+            pass
 
 
 def getExcelImgs(folderPath, file, imgsPath):
@@ -536,20 +569,9 @@ def getExcelImgs(folderPath, file, imgsPath):
         ws = wb[sheet]
         for i, image in enumerate(ws._images):
             img = Image.open(image.ref)
+            img = img.convert("RGB")
             imgFileName = '_'.join([file, sheet, str(i+1)])+'.jpg'
             img.save(os.path.join(imgsPath, imgFileName))
-
-
-
-# config = tf.ConfigProto()
-# config.gpu_options.per_process_gpu_memory_fraction = 0.5  # 設定使用多少%的記憶體
-# sess = tf.Session(config=config)
-# KTF.set_session(sess)
-
-# graph = tf.get_default_graph()
-# model = unet()
-# # model.load_weights(os.path.join('./models', 'unet.hdf5'))
-# model.load_weights('D:\\project\\PhotoCompare\\backend\\models\\unet.hdf5')
 
 
 def getPDFImgs(folderPath, file, imgsPath):
@@ -564,23 +586,6 @@ def getPDFImgs(folderPath, file, imgsPath):
             rgb = cv2.cvtColor(pageImg, cv2.COLOR_BGR2RGB)
             hsv = cv2.cvtColor(pageImg, cv2.COLOR_BGR2HSV)
             gray = cv2.cvtColor(pageImg, cv2.COLOR_BGR2GRAY)
-
-            # unet
-            # img = cv2.resize(gray, (256, 256))
-            # img = np.reshape(img, img.shape+(1,)) if (not False) else img
-            # img = np.reshape(img, (1,)+img.shape)
-            # with graph.as_default():
-            #     result = model.predict(img)
-            # result = result[0]
-            # img = labelVisualize(
-            #     2, COLOR_DICT, result) if False else result[:, :, 0]
-            # img = cv2.resize(img, (pageImg.shape[1], pageImg.shape[0]))
-            # img = (img*255).astype(np.uint8)
-            # (thresh, im_bw) = cv2.threshold(img, 0.05, 255, 0)
-            # contours, hierarchy = cv2.findContours(
-            #     im_bw, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            # unet_conts = [
-            #     contour for contour in contours if cv2.contourArea(contour) > 500000]
 
             # sat
             # 取出飽和度
@@ -597,22 +602,13 @@ def getPDFImgs(folderPath, file, imgsPath):
             sat_conts = [
                 contour for contour in contours if cv2.contourArea(contour) > 500000]
 
-            # if len(unet_conts) == 6:
-            #     conts = unet_conts
-            # elif len(sat_conts) == 6:
-            #     conts = sat_conts
-            # elif len(sat_conts) > len(unet_conts):
-            #     conts = sat_conts
-            # else:
-            #     conts = unet_conts
-
             conts = sat_conts
 
             sortY_conts = sorted([cont for cont in conts],
-                                key=lambda x: x[0][0][1], reverse=False)
+                                 key=lambda x: x[0][0][1], reverse=False)
             up_conts = sortY_conts[:3]
             up_conts = sorted([cont for cont in up_conts],
-                            key=lambda x: x[0][0][0], reverse=False)
+                              key=lambda x: x[0][0][0], reverse=False)
             down_conts = sortY_conts[3:]
             down_conts = sorted([cont for cont in down_conts],
                                 key=lambda x: x[0][0][0], reverse=False)
