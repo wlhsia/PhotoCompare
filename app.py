@@ -34,14 +34,14 @@ dbPath = sys.path[0]+'/database.db'
 cx = sqlite3.connect(dbPath, check_same_thread=False)
 
 # 絕對路徑自行設定
-pdfsPath = 'D:\\project\\PhotoCompare\\backend\\pdfs'
-wordsPath = 'D:\\project\\PhotoCompare\\backend\\words'
-excelsPath = 'D:\\project\\PhotoCompare\\backend\\excels'
-rawImgsPath = 'D:\\project\\PhotoCompare\\backend\\raw_imgs'
-resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\public\\static\\resize_imgs'
-# resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
-modelsPath = 'D:\\project\\PhotoCompare\\backend\\models'
-resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
+pdfsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/pdfs'
+wordsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/words'
+excelsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/excels'
+rawImgsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/raw_imgs'
+resizeImgsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareFrontend/public/static/resize_imgs'
+# resizeImgsPath = '\\Users\\wlhsia\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
+modelsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/models'
+resultsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/results'
 
 
 @app.route("/login", methods=['POST'])
@@ -210,7 +210,6 @@ def upload():
 
 @app.route('/api/delete', methods=['POST'])
 def delete():
-    print(request.get_json())
     dcit_request = request.get_json()
     path = os.path.join(dcit_request['folderPath'], dcit_request['file'])
     os.remove(path)
@@ -264,6 +263,7 @@ def updatedb():
     response = {"success": True}
     return jsonify(response)
 
+
 @app.route('/api/getImg', methods=['POST'])
 def getImg():
     dcit_request = request.get_json()
@@ -291,42 +291,22 @@ def getImg():
             filesName.append(fileName)
 
     imgsNum = len(os.listdir(imgsPath))
-    
+
     response = {
         "success": True,
-        "imgsPath": imgsPath, 
+        "imgsPath": imgsPath,
         "imgsNum": imgsNum
     }
     return jsonify(response)
 
+
 @app.route('/api/compare', methods=['POST'])
 def compare():
 
-    # dcit_request = request.get_json()
-    # folderPath = dcit_request['folderPath']
-    # files = os.listdir(folderPath)
-    # imgsPath = folderPath+'_imgs'
-    # if not os.path.isdir(imgsPath):
-    #     os.mkdir(imgsPath)
-
-    # # 擷取相片
-    # filesName = []
-    # for file in files:
-    #     if str(file).split('.')[-1].lower() == 'docx':
-    #         getWordImgs(folderPath, file, imgsPath)
-    #         shutil.copy(os.path.join(folderPath, file),
-    #                     os.path.join(wordsPath, file))
-    #     elif str(file).split('.')[-1].lower() == 'xlsx':
-    #         getExcelImgs(folderPath, file, imgsPath)
-    #         shutil.copy(os.path.join(folderPath, file),
-    #                     os.path.join(excelsPath, file))
-    #     elif str(file).split('.')[-1].lower() == 'pdf':
-    #         getPDFImgs(folderPath, file, imgsPath)
-    #         shutil.copy(os.path.join(folderPath, file),
-    #                     os.path.join(pdfsPath, file))
-    #     fileName = str(file).split('_')[0]
-    #     if fileName not in filesName:
-    #         filesName.append(fileName)
+    dcit_request = request.get_json()
+    fileList = dcit_request['fileList']
+    folderPath = dcit_request['folderPath']
+    imgsPath = dcit_request['imgsPath']
 
     # 將相片轉為特徵
     imgsName = os.listdir(imgsPath)
@@ -399,7 +379,7 @@ def compare():
     sht['A1'] = '工程案件相片重複性辨識'
     sht['A1'].font = Font(size=16, b=True, underline='single')
     sht['A1'].alignment = Alignment(horizontal='center', vertical='center')
-    proj_num = ",".join(filesName)
+    proj_num = ",".join(fileList)
     sht['A2'] = '工程編號：' + proj_num
     sht['C2'] = '日期：' + datetime.now().strftime("%Y/%m/%d")
     sht['A2'].font = Font(size=14, b=True)
@@ -412,24 +392,16 @@ def compare():
     sht.merge_cells('A3:D3')
     sht['A3'].font = Font(size=14, b=True)
     if len(duplicateImgs) == 0:
-        message = [
-            '系統比對相片數量： ' + str(len(imgsName)) + ' 張，比對結果無重複相片',
-            '是否將 ' + str(len(imgsName)) + ' 張相片寫入資料庫？(寫入後才能出表)'
-        ]
+        message = '系統比對結果相片無重複，是否將無重複的 ' + \
+            str(len(imgsName)) + ' 張相片寫入資料庫？(寫入後才能出表)'
         sht['A3'] = '系統比對結果無重複相片(系統比對相片數量：' + str(len(imgsName)) + \
             '張，寫入資料庫相片數量：' + str(len(imgsName)) + '張)'
     elif len(imgsName) == len(duplicateImgs):
-        message = [
-            '系統比對相片數量： ' + str(len(imgsName)) + ' 張，全部相片重複',
-            ''
-        ]
+        message = '系統比對結果全部相片重複'
         sht['A3'] = '系統比對結果全部相片重複(系統比對相片數量：' + str(len(imgsName)) + '張)'
     else:
-        message = [
-            '系統比對相片數量： ' + str(len(imgsName)) + ' 張，重複相片： ' +
-            str(len(duplicateImgs)) + ' 張',
-            '是否將 ' + str(len(imgsName) - len(duplicateImgs)) + ' 張相片寫入資料庫？'
-        ]
+        message = '是否將無重複的 ' + \
+            str(len(imgsName) - len(duplicateImgs)) + ' 張相片寫入資料庫？'
         sht['A3'] = '系統比對結果重複相片數量：' + \
             str(len(duplicateImgs)) + '張(系統比對相片數量：' + str(len(imgsName)) + '張)'
 
@@ -503,7 +475,7 @@ def compare():
             {'imgName': nonDuplicateImg, 'pHash': pHash, 'group': group})
 
     cu = cx.cursor()
-    for file in files:
+    for file in fileList:
         cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
             "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "', '" + resultFileName + "')")
     cu.close()
@@ -513,6 +485,7 @@ def compare():
         "success": True,
         "result1": result1,
         "result2": result2,
+        "duplicateImgsNum": len(duplicateImgs),
         "message": message,
         "nonDuplicateImgsData": nonDuplicateImgsData,
         'resultFileName': resultFileName
@@ -575,8 +548,7 @@ def getExcelImgs(folderPath, file, imgsPath):
 
 
 def getPDFImgs(folderPath, file, imgsPath):
-    with tempfile.TemporaryDirectory(dir='D:/temp') as path:
-
+    with tempfile.TemporaryDirectory(dir='/Users/wlhsia/PhotoCompare/temp') as path:
         pageImgs = convert_from_path(os.path.join(
             folderPath, file), output_folder=path, dpi=600)
         for pageNumber, pageImg in enumerate(pageImgs):
