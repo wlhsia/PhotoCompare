@@ -188,7 +188,7 @@ def deleterecord():
     return jsonify(response_object)
 
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload():
     response = {"success": False}
     try:
@@ -212,7 +212,7 @@ def upload():
     return jsonify(response)
 
 
-@app.route('/api/delete', methods=['POST'])
+@app.route('/delete', methods=['POST'])
 def delete():
     dcit_request = request.get_json()
     path = os.path.join(dcit_request['folderPath'], dcit_request['file'])
@@ -224,7 +224,7 @@ def delete():
     return jsonify(response)
 
 
-@app.route('/api/getlist', methods=['POST'])
+@app.route('/getlist', methods=['POST'])
 def uploadList():
     print(request.get_json())
     dcit_request = request.get_json()
@@ -268,7 +268,7 @@ def updatedb():
     return jsonify(response)
 
 
-@app.route('/api/getImg', methods=['POST'])
+@app.route('/getImg', methods=['POST'])
 def getImg():
     dcit_request = request.get_json()
     folderPath = dcit_request['folderPath']
@@ -304,7 +304,7 @@ def getImg():
     return jsonify(response)
 
 
-@app.route('/api/compare', methods=['POST'])
+@app.route('/compare', methods=['POST'])
 def compare():
 
     dcit_request = request.get_json()
