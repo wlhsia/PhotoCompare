@@ -25,6 +25,9 @@ from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
 from io import StringIO
 import sqlite3
+from win32com import client
+import win32api
+import pythoncom
 
 app = Flask(__name__)
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -34,14 +37,15 @@ dbPath = sys.path[0]+'/database.db'
 cx = sqlite3.connect(dbPath, check_same_thread=False)
 
 # 絕對路徑自行設定
-pdfsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/pdfs'
-wordsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/words'
-excelsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/excels'
-rawImgsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/raw_imgs'
-resizeImgsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareFrontend/public/static/resize_imgs'
-# resizeImgsPath = '\\Users\\wlhsia\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
-modelsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/models'
-resultsPath = '/Users/wlhsia/PhotoCompare/PhotoCompareBackend/results'
+pdfsPath = 'D:\\project\\PhotoCompare\\backend\\pdfs'
+wordsPath = 'D:\\project\\PhotoCompare\\backend\\words'
+excelsPath = 'D:\\project\\PhotoCompare\\backend\\excels'
+rawImgsPath = 'D:\\project\\PhotoCompare\\backend\\raw_imgs'
+resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\public\\static\\resize_imgs'
+# resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
+modelsPath = 'D:\\project\\PhotoCompare\\backend\\models'
+resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
+excelResultsPath = 'D:\\project\\PhotoCompare\\backend\\excel_results'
 
 
 @app.route("/login", methods=['POST'])
@@ -375,48 +379,68 @@ def compare():
     wb = Workbook()
     wb.create_sheet("工作表1", 0)
     sht = wb['工作表1']
-    sht.merge_cells('A1:D1')
+    sht.merge_cells('A1:E1')
     sht['A1'] = '工程案件相片重複性辨識'
     sht['A1'].font = Font(size=16, b=True, underline='single')
     sht['A1'].alignment = Alignment(horizontal='center', vertical='center')
-    proj_num = ",".join(fileList)
-    sht['A2'] = '工程編號：' + proj_num
-    sht['C2'] = '日期：' + datetime.now().strftime("%Y/%m/%d")
+    fileName = fileList[0].split('.')[0]
+    sht['A2'] = '工程檔案名稱：' + fileName
+    sht['E2'] = '日期：' + datetime.now().strftime("%Y/%m/%d")
     sht['A2'].font = Font(size=14, b=True)
-    sht['C2'].font = Font(size=14, b=True)
-    sht.column_dimensions["A"].width = 50
-    sht.column_dimensions["B"].width = 20
-    sht.column_dimensions["C"].width = 50
-    sht.column_dimensions["D"].width = 20
+    sht['E2'].font = Font(size=14, b=True)
+    sht.column_dimensions["A"].width = 40
+    sht.column_dimensions["B"].width = 25
+    sht.column_dimensions["C"].width = 40
+    sht.column_dimensions["D"].width = 25
+    sht.column_dimensions["E"].width = 25
 
-    sht.merge_cells('A3:D3')
+    sht.merge_cells('A3:E3')
     sht['A3'].font = Font(size=14, b=True)
     if len(duplicateImgs) == 0:
-        message = '系統比對結果相片無重複，是否將無重複的 ' + \
+        message = '[系統比對結果]相片無重複，是否將無重複的 ' + \
             str(len(imgsName)) + ' 張相片寫入資料庫？(寫入後才能出表)'
-        sht['A3'] = '系統比對結果無重複相片(系統比對相片數量：' + str(len(imgsName)) + \
+        sht['A3'] = '[系統比對結果]無重複相片(系統比對相片數量：' + str(len(imgsName)) + \
             '張，寫入資料庫相片數量：' + str(len(imgsName)) + '張)'
     elif len(imgsName) == len(duplicateImgs):
-        message = '系統比對結果全部相片重複'
-        sht['A3'] = '系統比對結果全部相片重複(系統比對相片數量：' + str(len(imgsName)) + '張)'
+        message = '[系統比對結果]全部相片重複'
+        sht['A3'] = '[系統比對結果]全部相片重複(系統比對相片數量：' + str(len(imgsName)) + '張)'
     else:
-        message = '是否將無重複的 ' + \
+        message = '[系統比對結果]部分相片重複，是否將無重複的 ' + \
             str(len(imgsName) - len(duplicateImgs)) + ' 張相片寫入資料庫？'
-        sht['A3'] = '系統比對結果重複相片數量：' + \
+        sht['A3'] = '[系統比對結果]部分相片重複，重複相片數量：' + \
             str(len(duplicateImgs)) + '張(系統比對相片數量：' + str(len(imgsName)) + '張)'
+
+
+    line = Side(style='thin', color='000000')
+    border = Border(top=line, bottom=line, left=line, right=line)
 
     i = 4
     if len(result1) != 0:
+        sht.merge_cells('A'+str(i)+':B'+str(i))
         sht['A'+str(i)] = '上傳的相片'
         sht['A'+str(i)].font = Font(b=True)
+        sht['A'+str(i)].border = border
         sht['A'+str(i)].alignment = Alignment(horizontal='center',
                                               vertical='center')
+
+        sht.merge_cells('C'+str(i)+':D'+str(i))
         sht['C'+str(i)] = '上傳的相片'
         sht['C'+str(i)].font = Font(b=True)
+        sht['C'+str(i)].border = border
         sht['C'+str(i)].alignment = Alignment(horizontal='center',
+                                              vertical='center')
+        sht['E'+str(i)] = '說明/備註'
+        sht['E'+str(i)].font = Font(b=True)
+        sht['E'+str(i)].border = border
+        sht['E'+str(i)].alignment = Alignment(horizontal='center',
                                               vertical='center')
         i = i+1
         for item in result1:
+            sht['A'+str(i)].border = border
+            sht['B'+str(i)].border = border
+            sht['C'+str(i)].border = border
+            sht['D'+str(i)].border = border
+            sht['E'+str(i)].border = border
             sht.row_dimensions[i].height = 80
             with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
                 img = img.resize((100, 100), Image.ANTIALIAS)
@@ -433,16 +457,30 @@ def compare():
             i = i + 1
 
     if len(result2) != 0:
+        sht.merge_cells('A'+str(i)+':B'+str(i))
         sht['A'+str(i)] = '上傳的相片'
         sht['A'+str(i)].font = Font(b=True)
+        sht['A'+str(i)].border = border
         sht['A'+str(i)].alignment = Alignment(horizontal='center',
                                               vertical='center')
+        sht.merge_cells('C'+str(i)+':D'+str(i))
         sht['C'+str(i)] = '資料庫的相片'
         sht['C'+str(i)].font = Font(b=True)
+        sht['C'+str(i)].border = border
         sht['C'+str(i)].alignment = Alignment(horizontal='center',
+                                              vertical='center')
+        sht['E'+str(i)] = '說明/備註'
+        sht['E'+str(i)].font = Font(b=True)
+        sht['E'+str(i)].border = border
+        sht['E'+str(i)].alignment = Alignment(horizontal='center',
                                               vertical='center')
         i = i+1
         for item in result2:
+            sht['A'+str(i)].border = border
+            sht['B'+str(i)].border = border
+            sht['C'+str(i)].border = border
+            sht['D'+str(i)].border = border
+            sht['E'+str(i)].border = border
             sht.row_dimensions[i].height = 80
             with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
                 img = img.resize((100, 100), Image.ANTIALIAS)
@@ -458,10 +496,26 @@ def compare():
                 resizeImgsPath, item['imgName2'])), "D"+str(i))
             i = i + 1
 
+    sht.page_setup.orientation = sht.ORIENTATION_LANDSCAPE
+    sht.page_setup.fitToHeight = False
+    sht.sheet_properties.pageSetUpPr.fitToPage = True
+
     resultFileName = datetime.today().strftime(
-        "%Y%m%d%H%M") + '_' + proj_num + '_比對結果.xlsx'
-    wb.save(os.path.join(resultsPath, resultFileName))
+        "%Y%m%d%H%M") + '_' + fileName + '_比對結果.xlsx'
+    wb.save(os.path.join(excelResultsPath, resultFileName))
     wb.close()
+
+    pythoncom.CoInitialize()
+    app = client.Dispatch("Excel.Application")
+    pythoncom.CoInitialize()
+    wb = app.Workbooks.Open(os.path.join(excelResultsPath,  resultFileName))
+    ws = wb.Worksheets[0]
+    ws.Visible = 1
+    resultFileName = datetime.today().strftime(
+        "%Y%m%d%H%M") + '_' + fileName + '_比對結果.pdf'
+    ws.ExportAsFixedFormat( 0, os.path.join(resultsPath, resultFileName))
+    wb.Close()
+    app.Quit()
 
     s1 = set(imgsName)
     s2 = set(duplicateImgs)
@@ -485,10 +539,10 @@ def compare():
         "success": True,
         "result1": result1,
         "result2": result2,
+        "resultFileName": resultFileName,
         "duplicateImgsNum": len(duplicateImgs),
         "message": message,
         "nonDuplicateImgsData": nonDuplicateImgsData,
-        'resultFileName': resultFileName
     }
     return jsonify(response)
 
@@ -548,12 +602,12 @@ def getExcelImgs(folderPath, file, imgsPath):
 
 
 def getPDFImgs(folderPath, file, imgsPath):
-    with tempfile.TemporaryDirectory(dir='/Users/wlhsia/PhotoCompare/temp') as path:
+    with tempfile.TemporaryDirectory(dir='D:\\temp') as path:
         pageImgs = convert_from_path(os.path.join(
             folderPath, file), output_folder=path, dpi=600)
         for pageNumber, pageImg in enumerate(pageImgs):
-            if pageImg.size[0] < pageImg.size[1]:
-                pageImg = pageImg.rotate(90, Image.NEAREST, expand=True)
+            # if pageImg.size[0] < pageImg.size[1]:
+            #     pageImg = pageImg.rotate(90, Image.NEAREST, expand=True)
             pageImg = np.array(pageImg)
             rgb = cv2.cvtColor(pageImg, cv2.COLOR_BGR2RGB)
             hsv = cv2.cvtColor(pageImg, cv2.COLOR_BGR2HSV)
