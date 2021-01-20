@@ -74,6 +74,26 @@ def login():
     else:
         return jsonify(response)
 
+@app.route("/create", methods=["POST"])
+def create():
+    post_data = request.get_json()
+    username = post_data.get('username')
+    path = os.path.join(APP_ROOT, username)
+    if not os.path.isdir(path):
+        os.mkdir(path)
+    response_object = {'status': 'success'}
+    return jsonify(response_object)
+
+@app.route("/destroy", methods=["POST"])
+def destroy():
+    post_data = request.get_json()
+    username = post_data.get('username')
+    path = os.path.join(APP_ROOT, username)
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    response_object = {'status': 'success'}
+    return jsonify(response_object)
+
 
 @app.route("/users", methods=["GET", "POST"])
 def users():
@@ -193,15 +213,21 @@ def upload():
     response = {"success": False}
     try:
         if request.method == 'POST':
-            files = request.files
-            if len(files) != 0:
-                autoGenFolderName = uuid.uuid1()
-                folderPath = os.path.join(APP_ROOT, str(autoGenFolderName))
-                os.mkdir(folderPath)
-            for f in files:
-                file = request.files[f]
-                filename = secure_filename(file.filename)
-                file.save(os.path.join(folderPath, filename))
+            post_data = request.get_json()
+            formData = post_data['formData']
+            username = post_data['username']
+            print(username)
+            files = formData.files
+            print(len(files))
+            # files = request.files
+            # if len(files) != 0:
+            #     autoGenFolderName = uuid.uuid1()
+            #     folderPath = os.path.join(APP_ROOT, str(autoGenFolderName))
+            #     os.mkdir(folderPath)
+            # for f in files:
+            #     file = request.files[f]
+            #     filename = secure_filename(file.filename)
+            #     file.save(os.path.join(folderPath, filename))
             response = {
                 "success": True,
                 "folderPath": folderPath,
@@ -238,14 +264,12 @@ def uploadList():
     }
     return jsonify(response)
 
-
 @app.route('/download', methods=['POST'])
 def download():
     dcit_request = request.get_json()
     resultFileName = dcit_request['resultFileName']
     f = open(os.path.join(resultsPath, resultFileName), 'rb')
     return f.read()
-
 
 @app.route('/updatedb', methods=['POST'])
 def updatedb():
@@ -600,74 +624,72 @@ def getExcelImgs(folderPath, file, imgsPath):
             imgFileName = '_'.join([file, sheet, str(i+1)])+'.jpg'
             img.save(os.path.join(imgsPath, imgFileName))
 
-
 def getPDFImgs(folderPath, file, imgsPath):
-    with tempfile.TemporaryDirectory(dir='D:\\temp') as path:
-        pageImgs = convert_from_path(os.path.join(
-            folderPath, file), output_folder=path, dpi=600)
-        for pageNumber, pageImg in enumerate(pageImgs):
-            # if pageImg.size[0] < pageImg.size[1]:
-            #     pageImg = pageImg.rotate(90, Image.NEAREST, expand=True)
-            pageImg = np.array(pageImg)
-            rgb = cv2.cvtColor(pageImg, cv2.COLOR_BGR2RGB)
-            hsv = cv2.cvtColor(pageImg, cv2.COLOR_BGR2HSV)
-            gray = cv2.cvtColor(pageImg, cv2.COLOR_BGR2GRAY)
+    pageImgs = convert_from_path(os.path.join(
+        folderPath, file), output_folder=folderPath, dpi=600, fmt='jpg')
 
-            # sat
-            # 取出飽和度
-            saturation = hsv[:, :, 1]
-            _, threshold = cv2.threshold(
-                saturation, 1, 255.0, cv2.THRESH_BINARY)
-            # 2值化圖去除雜訊
-            kernel_radius = int(threshold.shape[1]/300)
-            kernel = np.ones((kernel_radius, kernel_radius), np.uint8)
-            threshold = cv2.morphologyEx(threshold, cv2.MORPH_OPEN, kernel)
-            # 產生等高線
-            contours, hierarchy = cv2.findContours(
-                threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            sat_conts = [
-                contour for contour in contours if cv2.contourArea(contour) > 500000]
+    for pageNumber, pageImg in enumerate(pageImgs):
+        img = np.array(pageImg)
+        pageImg.close()
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            conts = sat_conts
+        # sat
+        # 取出飽和度
+        saturation = hsv[:, :, 1]
+        _, threshold = cv2.threshold(
+            saturation, 1, 255.0, cv2.THRESH_BINARY)
+        # 2值化圖去除雜訊
+        kernel_radius = int(threshold.shape[1]/300)
+        kernel = np.ones((kernel_radius, kernel_radius), np.uint8)
+        threshold = cv2.morphologyEx(threshold, cv2.MORPH_OPEN, kernel)
+        # 產生等高線
+        contours, hierarchy = cv2.findContours(
+            threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        sat_conts = [
+            contour for contour in contours if cv2.contourArea(contour) > 500000]
 
-            sortY_conts = sorted([cont for cont in conts],
-                                 key=lambda x: x[0][0][1], reverse=False)
-            up_conts = sortY_conts[:3]
-            up_conts = sorted([cont for cont in up_conts],
-                              key=lambda x: x[0][0][0], reverse=False)
-            down_conts = sortY_conts[3:]
-            down_conts = sorted([cont for cont in down_conts],
-                                key=lambda x: x[0][0][0], reverse=False)
-            merge_conts = up_conts+down_conts
+        conts = sat_conts
 
-            for i, c in enumerate(merge_conts):
-                # 嘗試在各種角度，以最小的方框包住面積最大的等高線區域，以紅色線條標示
-                rect = cv2.minAreaRect(c)
-                box = cv2.boxPoints(rect)
-                box = np.int0(box)
-                angle = rect[2]
-                if angle < -45:
-                    angle = 90 + angle
-                # 以影像中心為旋轉軸心
-                (h, w) = pageImg.shape[:2]
-                center = (w // 2, h // 2)
-                # 計算旋轉矩陣
-                M = cv2.getRotationMatrix2D(center, angle, 1.0)
-                # 旋轉圖片
-                rotated = cv2.warpAffine(
-                    rgb, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT)
-                # 旋轉紅色方框座標
-                pts = np.int0(cv2.transform(np.array([box]), M))[0]
-                #  計算旋轉後的紅色方框範圍
-                y_min = min(pts[0][0], pts[1][0], pts[2][0], pts[3][0])
-                y_max = max(pts[0][0], pts[1][0], pts[2][0], pts[3][0])
-                x_min = min(pts[0][1], pts[1][1], pts[2][1], pts[3][1])
-                x_max = max(pts[0][1], pts[1][1], pts[2][1], pts[3][1])
-                # 裁切影像
-                img_crop = rotated[x_min:x_max, y_min:y_max]
-                page_num = (str(pageNumber+1)).zfill(3)
-                dst_filenm = '_'.join([file, 'Page'+page_num, str(i+1)])+'.jpg'
-                cv2.imwrite(os.path.join(imgsPath, dst_filenm), img_crop)
+        sortY_conts = sorted([cont for cont in conts],
+                                key=lambda x: x[0][0][1], reverse=False)
+        up_conts = sortY_conts[:3]
+        up_conts = sorted([cont for cont in up_conts],
+                            key=lambda x: x[0][0][0], reverse=False)
+        down_conts = sortY_conts[3:]
+        down_conts = sorted([cont for cont in down_conts],
+                            key=lambda x: x[0][0][0], reverse=False)
+        merge_conts = up_conts+down_conts
+
+        for i, c in enumerate(merge_conts):
+            # 嘗試在各種角度，以最小的方框包住面積最大的等高線區域，以紅色線條標示
+            rect = cv2.minAreaRect(c)
+            box = cv2.boxPoints(rect)
+            box = np.int0(box)
+            angle = rect[2]
+            if angle < -45:
+                angle = 90 + angle
+            # 以影像中心為旋轉軸心
+            (h, w) = img.shape[:2]
+            center = (w // 2, h // 2)
+            # 計算旋轉矩陣
+            M = cv2.getRotationMatrix2D(center, angle, 1.0)
+            # 旋轉圖片
+            rotated = cv2.warpAffine(
+                rgb, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT)
+            # 旋轉紅色方框座標
+            pts = np.int0(cv2.transform(np.array([box]), M))[0]
+            #  計算旋轉後的紅色方框範圍
+            y_min = min(pts[0][0], pts[1][0], pts[2][0], pts[3][0])
+            y_max = max(pts[0][0], pts[1][0], pts[2][0], pts[3][0])
+            x_min = min(pts[0][1], pts[1][1], pts[2][1], pts[3][1])
+            x_max = max(pts[0][1], pts[1][1], pts[2][1], pts[3][1])
+            # 裁切影像
+            img_crop = rotated[x_min:x_max, y_min:y_max]
+            page_num = (str(pageNumber+1)).zfill(3)
+            dst_filenm = '_'.join([file, 'Page'+page_num, str(i+1)])+'.jpg'
+            cv2.imwrite(os.path.join(imgsPath, dst_filenm), img_crop)
 
 
 if __name__ == "__main__":
