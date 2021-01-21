@@ -19,7 +19,6 @@ import shutil
 from sklearn.externals import joblib
 from numba import cuda
 from datetime import datetime
-import tempfile
 import docx
 from xml.etree import ElementTree
 import xml.etree.cElementTree as ET
@@ -37,15 +36,15 @@ dbPath = sys.path[0]+'/database.db'
 cx = sqlite3.connect(dbPath, check_same_thread=False)
 
 # 絕對路徑自行設定
-pdfsPath = 'D:\\project\\PhotoCompare\\backend\\pdfs'
-wordsPath = 'D:\\project\\PhotoCompare\\backend\\words'
-excelsPath = 'D:\\project\\PhotoCompare\\backend\\excels'
-rawImgsPath = 'D:\\project\\PhotoCompare\\backend\\raw_imgs'
-resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\public\\static\\resize_imgs'
-# resizeImgsPath = 'D:\\project\\PhotoCompare\\frontend\\dist\\static\\resize_imgs'
-modelsPath = 'D:\\project\\PhotoCompare\\backend\\models'
-resultsPath = 'D:\\project\\PhotoCompare\\backend\\results'
-excelResultsPath = 'D:\\project\\PhotoCompare\\backend\\excel_results'
+pdfsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\pdfs'
+wordsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\words'
+excelsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\excels'
+rawImgsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\raw_imgs'
+resizeImgsPath = 'D:\\project\\PhotoCompare\\PhotoCompareFrontend\\public\\static\\resize_imgs'
+# resizeImgsPath = 'D:\\project\\PhotoCompare\\PhotoCompareFrontend\\dist\\resize_imgs'
+modelsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\models'
+resultsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\results'
+excelResultsPath = 'D:\\project\\PhotoCompare\\PhotoCompareBackend\\excel_results'
 
 
 @app.route("/login", methods=['POST'])
@@ -74,33 +73,13 @@ def login():
     else:
         return jsonify(response)
 
-@app.route("/create", methods=["POST"])
-def create():
-    post_data = request.get_json()
-    username = post_data.get('username')
-    path = os.path.join(APP_ROOT, username)
-    if not os.path.isdir(path):
-        os.mkdir(path)
-    response_object = {'status': 'success'}
-    return jsonify(response_object)
-
-@app.route("/destroy", methods=["POST"])
-def destroy():
-    post_data = request.get_json()
-    username = post_data.get('username')
-    path = os.path.join(APP_ROOT, username)
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    response_object = {'status': 'success'}
-    return jsonify(response_object)
-
 
 @app.route("/users", methods=["GET", "POST"])
 def users():
     response_object = {'status': 'success'}
     if request.method == 'GET':
         cu = cx.cursor()
-        cu.execute("select username, password, remark from 'User'")
+        cu.execute("select username, password, remark from 'User' order by username")
         data = cu.fetchall()
         cu.close()
         userList = []
@@ -213,21 +192,16 @@ def upload():
     response = {"success": False}
     try:
         if request.method == 'POST':
-            post_data = request.get_json()
-            formData = post_data['formData']
-            username = post_data['username']
-            print(username)
-            files = formData.files
-            print(len(files))
-            # files = request.files
-            # if len(files) != 0:
-            #     autoGenFolderName = uuid.uuid1()
-            #     folderPath = os.path.join(APP_ROOT, str(autoGenFolderName))
-            #     os.mkdir(folderPath)
-            # for f in files:
-            #     file = request.files[f]
-            #     filename = secure_filename(file.filename)
-            #     file.save(os.path.join(folderPath, filename))
+            files = request.files
+            username = request.form['username']
+            if len(files) != 0:
+                # autoGenFolderName = uuid.uuid1()
+                folderPath = os.path.join(APP_ROOT, str(username))
+                os.mkdir(folderPath)
+            for f in files:
+                file = request.files[f]
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(folderPath, filename))
             response = {
                 "success": True,
                 "folderPath": folderPath,
@@ -264,12 +238,14 @@ def uploadList():
     }
     return jsonify(response)
 
+
 @app.route('/download', methods=['POST'])
 def download():
     dcit_request = request.get_json()
     resultFileName = dcit_request['resultFileName']
     f = open(os.path.join(resultsPath, resultFileName), 'rb')
     return f.read()
+
 
 @app.route('/updatedb', methods=['POST'])
 def updatedb():
@@ -400,164 +376,164 @@ def compare():
                             duplicateImgs.append(imgName1)
     cu.close()
 
-    wb = Workbook()
-    wb.create_sheet("工作表1", 0)
-    sht = wb['工作表1']
-    sht.merge_cells('A1:E1')
-    sht['A1'] = '工程案件相片重複性辨識'
-    sht['A1'].font = Font(size=16, b=True, underline='single')
-    sht['A1'].alignment = Alignment(horizontal='center', vertical='center')
-    fileName = fileList[0].split('.')[0]
-    sht['A2'] = '工程檔案名稱：' + fileName
-    sht['E2'] = '日期：' + datetime.now().strftime("%Y/%m/%d")
-    sht['A2'].font = Font(size=14, b=True)
-    sht['E2'].font = Font(size=14, b=True)
-    sht.column_dimensions["A"].width = 40
-    sht.column_dimensions["B"].width = 25
-    sht.column_dimensions["C"].width = 40
-    sht.column_dimensions["D"].width = 25
-    sht.column_dimensions["E"].width = 25
+    # wb = Workbook()
+    # wb.create_sheet("工作表1", 0)
+    # sht = wb['工作表1']
+    # sht.merge_cells('A1:E1')
+    # sht['A1'] = '工程案件相片重複性辨識'
+    # sht['A1'].font = Font(size=16, b=True, underline='single')
+    # sht['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    # fileName = fileList[0].split('.')[0]
+    # sht['A2'] = '工程檔案名稱：' + fileName
+    # sht['E2'] = '日期：' + datetime.now().strftime("%Y/%m/%d")
+    # sht['A2'].font = Font(size=14, b=True)
+    # sht['E2'].font = Font(size=14, b=True)
+    # sht.column_dimensions["A"].width = 40
+    # sht.column_dimensions["B"].width = 25
+    # sht.column_dimensions["C"].width = 40
+    # sht.column_dimensions["D"].width = 25
+    # sht.column_dimensions["E"].width = 25
 
-    sht.merge_cells('A3:E3')
-    sht['A3'].font = Font(size=14, b=True)
-    if len(duplicateImgs) == 0:
-        message = '[系統比對結果]相片無重複，是否將無重複的 ' + \
-            str(len(imgsName)) + ' 張相片寫入資料庫？(寫入後才能出表)'
-        sht['A3'] = '[系統比對結果]無重複相片(系統比對相片數量：' + str(len(imgsName)) + \
-            '張，寫入資料庫相片數量：' + str(len(imgsName)) + '張)'
-    elif len(imgsName) == len(duplicateImgs):
-        message = '[系統比對結果]全部相片重複'
-        sht['A3'] = '[系統比對結果]全部相片重複(系統比對相片數量：' + str(len(imgsName)) + '張)'
-    else:
-        message = '[系統比對結果]部分相片重複，是否將無重複的 ' + \
-            str(len(imgsName) - len(duplicateImgs)) + ' 張相片寫入資料庫？'
-        sht['A3'] = '[系統比對結果]部分相片重複，重複相片數量：' + \
-            str(len(duplicateImgs)) + '張(系統比對相片數量：' + str(len(imgsName)) + '張)'
+    # sht.merge_cells('A3:E3')
+    # sht['A3'].font = Font(size=14, b=True)
+    # if len(duplicateImgs) == 0:
+    #     message = '[系統比對結果]相片無重複，是否將無重複的 ' + \
+    #         str(len(imgsName)) + ' 張相片寫入資料庫？(寫入後才能出表)'
+    #     sht['A3'] = '[系統比對結果]無重複相片(系統比對相片數量：' + str(len(imgsName)) + \
+    #         '張，寫入資料庫相片數量：' + str(len(imgsName)) + '張)'
+    # elif len(imgsName) == len(duplicateImgs):
+    #     message = '[系統比對結果]全部相片重複'
+    #     sht['A3'] = '[系統比對結果]全部相片重複(系統比對相片數量：' + str(len(imgsName)) + '張)'
+    # else:
+    #     message = '[系統比對結果]部分相片重複，是否將無重複的 ' + \
+    #         str(len(imgsName) - len(duplicateImgs)) + ' 張相片寫入資料庫？'
+    #     sht['A3'] = '[系統比對結果]部分相片重複，重複相片數量：' + \
+    #         str(len(duplicateImgs)) + '張(系統比對相片數量：' + str(len(imgsName)) + '張)'
 
 
-    line = Side(style='thin', color='000000')
-    border = Border(top=line, bottom=line, left=line, right=line)
+    # line = Side(style='thin', color='000000')
+    # border = Border(top=line, bottom=line, left=line, right=line)
 
-    i = 4
-    if len(result1) != 0:
-        sht.merge_cells('A'+str(i)+':B'+str(i))
-        sht['A'+str(i)] = '上傳的相片'
-        sht['A'+str(i)].font = Font(b=True)
-        sht['A'+str(i)].border = border
-        sht['A'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
+    # i = 4
+    # if len(result1) != 0:
+    #     sht.merge_cells('A'+str(i)+':B'+str(i))
+    #     sht['A'+str(i)] = '上傳的相片'
+    #     sht['A'+str(i)].font = Font(b=True)
+    #     sht['A'+str(i)].border = border
+    #     sht['A'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
 
-        sht.merge_cells('C'+str(i)+':D'+str(i))
-        sht['C'+str(i)] = '上傳的相片'
-        sht['C'+str(i)].font = Font(b=True)
-        sht['C'+str(i)].border = border
-        sht['C'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
-        sht['E'+str(i)] = '說明/備註'
-        sht['E'+str(i)].font = Font(b=True)
-        sht['E'+str(i)].border = border
-        sht['E'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
-        i = i+1
-        for item in result1:
-            sht['A'+str(i)].border = border
-            sht['B'+str(i)].border = border
-            sht['C'+str(i)].border = border
-            sht['D'+str(i)].border = border
-            sht['E'+str(i)].border = border
-            sht.row_dimensions[i].height = 80
-            with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
-                img = img.resize((100, 100), Image.ANTIALIAS)
-                img.save(os.path.join(resizeImgsPath, item['imgName1']))
-            with Image.open(os.path.join(rawImgsPath, item['imgName2'])) as img:
-                img = img.resize((100, 100), Image.ANTIALIAS)
-                img.save(os.path.join(resizeImgsPath, item['imgName2']))
-            sht['A'+str(i)] = item['imgName1']
-            sht.add_image(Image_xl(os.path.join(
-                resizeImgsPath, item['imgName1'])), "B"+str(i))
-            sht['C'+str(i)] = item['imgName2']
-            sht.add_image(Image_xl(os.path.join(
-                resizeImgsPath, item['imgName2'])), "D"+str(i))
-            i = i + 1
+    #     sht.merge_cells('C'+str(i)+':D'+str(i))
+    #     sht['C'+str(i)] = '上傳的相片'
+    #     sht['C'+str(i)].font = Font(b=True)
+    #     sht['C'+str(i)].border = border
+    #     sht['C'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
+    #     sht['E'+str(i)] = '說明/備註'
+    #     sht['E'+str(i)].font = Font(b=True)
+    #     sht['E'+str(i)].border = border
+    #     sht['E'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
+    #     i = i+1
+    #     for item in result1:
+    #         sht['A'+str(i)].border = border
+    #         sht['B'+str(i)].border = border
+    #         sht['C'+str(i)].border = border
+    #         sht['D'+str(i)].border = border
+    #         sht['E'+str(i)].border = border
+    #         sht.row_dimensions[i].height = 80
+    #         with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
+    #             img = img.resize((100, 100), Image.ANTIALIAS)
+    #             img.save(os.path.join(resizeImgsPath, item['imgName1']))
+    #         with Image.open(os.path.join(rawImgsPath, item['imgName2'])) as img:
+    #             img = img.resize((100, 100), Image.ANTIALIAS)
+    #             img.save(os.path.join(resizeImgsPath, item['imgName2']))
+    #         sht['A'+str(i)] = item['imgName1']
+    #         sht.add_image(Image_xl(os.path.join(
+    #             resizeImgsPath, item['imgName1'])), "B"+str(i))
+    #         sht['C'+str(i)] = item['imgName2']
+    #         sht.add_image(Image_xl(os.path.join(
+    #             resizeImgsPath, item['imgName2'])), "D"+str(i))
+    #         i = i + 1
 
-    if len(result2) != 0:
-        sht.merge_cells('A'+str(i)+':B'+str(i))
-        sht['A'+str(i)] = '上傳的相片'
-        sht['A'+str(i)].font = Font(b=True)
-        sht['A'+str(i)].border = border
-        sht['A'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
-        sht.merge_cells('C'+str(i)+':D'+str(i))
-        sht['C'+str(i)] = '資料庫的相片'
-        sht['C'+str(i)].font = Font(b=True)
-        sht['C'+str(i)].border = border
-        sht['C'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
-        sht['E'+str(i)] = '說明/備註'
-        sht['E'+str(i)].font = Font(b=True)
-        sht['E'+str(i)].border = border
-        sht['E'+str(i)].alignment = Alignment(horizontal='center',
-                                              vertical='center')
-        i = i+1
-        for item in result2:
-            sht['A'+str(i)].border = border
-            sht['B'+str(i)].border = border
-            sht['C'+str(i)].border = border
-            sht['D'+str(i)].border = border
-            sht['E'+str(i)].border = border
-            sht.row_dimensions[i].height = 80
-            with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
-                img = img.resize((100, 100), Image.ANTIALIAS)
-                img.save(os.path.join(resizeImgsPath, item['imgName1']))
-            with Image.open(os.path.join(rawImgsPath, item['imgName2'])) as img:
-                img = img.resize((100, 100), Image.ANTIALIAS)
-                img.save(os.path.join(resizeImgsPath, item['imgName2']))
-            sht['A'+str(i)] = item['imgName1']
-            sht.add_image(Image_xl(os.path.join(
-                resizeImgsPath, item['imgName1'])), "B"+str(i))
-            sht['C'+str(i)] = item['imgName2']
-            sht.add_image(Image_xl(os.path.join(
-                resizeImgsPath, item['imgName2'])), "D"+str(i))
-            i = i + 1
+    # if len(result2) != 0:
+    #     sht.merge_cells('A'+str(i)+':B'+str(i))
+    #     sht['A'+str(i)] = '上傳的相片'
+    #     sht['A'+str(i)].font = Font(b=True)
+    #     sht['A'+str(i)].border = border
+    #     sht['A'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
+    #     sht.merge_cells('C'+str(i)+':D'+str(i))
+    #     sht['C'+str(i)] = '資料庫的相片'
+    #     sht['C'+str(i)].font = Font(b=True)
+    #     sht['C'+str(i)].border = border
+    #     sht['C'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
+    #     sht['E'+str(i)] = '說明/備註'
+    #     sht['E'+str(i)].font = Font(b=True)
+    #     sht['E'+str(i)].border = border
+    #     sht['E'+str(i)].alignment = Alignment(horizontal='center',
+    #                                           vertical='center')
+    #     i = i+1
+    #     for item in result2:
+    #         sht['A'+str(i)].border = border
+    #         sht['B'+str(i)].border = border
+    #         sht['C'+str(i)].border = border
+    #         sht['D'+str(i)].border = border
+    #         sht['E'+str(i)].border = border
+    #         sht.row_dimensions[i].height = 80
+    #         with Image.open(os.path.join(rawImgsPath, item['imgName1'])) as img:
+    #             img = img.resize((100, 100), Image.ANTIALIAS)
+    #             img.save(os.path.join(resizeImgsPath, item['imgName1']))
+    #         with Image.open(os.path.join(rawImgsPath, item['imgName2'])) as img:
+    #             img = img.resize((100, 100), Image.ANTIALIAS)
+    #             img.save(os.path.join(resizeImgsPath, item['imgName2']))
+    #         sht['A'+str(i)] = item['imgName1']
+    #         sht.add_image(Image_xl(os.path.join(
+    #             resizeImgsPath, item['imgName1'])), "B"+str(i))
+    #         sht['C'+str(i)] = item['imgName2']
+    #         sht.add_image(Image_xl(os.path.join(
+    #             resizeImgsPath, item['imgName2'])), "D"+str(i))
+    #         i = i + 1
 
-    sht.page_setup.orientation = sht.ORIENTATION_LANDSCAPE
-    sht.page_setup.fitToHeight = False
-    sht.sheet_properties.pageSetUpPr.fitToPage = True
+    # sht.page_setup.orientation = sht.ORIENTATION_LANDSCAPE
+    # sht.page_setup.fitToHeight = False
+    # sht.sheet_properties.pageSetUpPr.fitToPage = True
 
-    resultFileName = datetime.today().strftime(
-        "%Y%m%d%H%M") + '_' + fileName + '_比對結果.xlsx'
-    wb.save(os.path.join(excelResultsPath, resultFileName))
-    wb.close()
+    # resultFileName = datetime.today().strftime(
+    #     "%Y%m%d%H%M") + '_' + fileName + '_比對結果.xlsx'
+    # wb.save(os.path.join(excelResultsPath, resultFileName))
+    # wb.close()
 
-    pythoncom.CoInitialize()
-    app = client.Dispatch("Excel.Application")
-    pythoncom.CoInitialize()
-    wb = app.Workbooks.Open(os.path.join(excelResultsPath,  resultFileName))
-    ws = wb.Worksheets[0]
-    ws.Visible = 1
-    resultFileName = datetime.today().strftime(
-        "%Y%m%d%H%M") + '_' + fileName + '_比對結果.pdf'
-    ws.ExportAsFixedFormat( 0, os.path.join(resultsPath, resultFileName))
-    wb.Close()
-    app.Quit()
+    # pythoncom.CoInitialize()
+    # app = client.Dispatch("Excel.Application")
+    # pythoncom.CoInitialize()
+    # wb = app.Workbooks.Open(os.path.join(excelResultsPath,  resultFileName))
+    # ws = wb.Worksheets[0]
+    # ws.Visible = 1
+    # resultFileName = datetime.today().strftime(
+    #     "%Y%m%d%H%M") + '_' + fileName + '_比對結果.pdf'
+    # ws.ExportAsFixedFormat( 0, os.path.join(resultsPath, resultFileName))
+    # wb.Close()
+    # app.Quit()
 
-    s1 = set(imgsName)
-    s2 = set(duplicateImgs)
-    nonDuplicateImgs = list(s1.symmetric_difference(s2))
+    # s1 = set(imgsName)
+    # s2 = set(duplicateImgs)
+    # nonDuplicateImgs = list(s1.symmetric_difference(s2))
 
-    nonDuplicateImgsData = []
-    for nonDuplicateImg in nonDuplicateImgs:
-        pHash = str(imgsPHash[nonDuplicateImg])
-        group = str(imgsGroup[nonDuplicateImg])
-        nonDuplicateImgsData.append(
-            {'imgName': nonDuplicateImg, 'pHash': pHash, 'group': group})
+    # nonDuplicateImgsData = []
+    # for nonDuplicateImg in nonDuplicateImgs:
+    #     pHash = str(imgsPHash[nonDuplicateImg])
+    #     group = str(imgsGroup[nonDuplicateImg])
+    #     nonDuplicateImgsData.append(
+    #         {'imgName': nonDuplicateImg, 'pHash': pHash, 'group': group})
 
-    cu = cx.cursor()
-    for file in fileList:
-        cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
-            "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "', '" + resultFileName + "')")
-    cu.close()
-    cx.commit()
+    # cu = cx.cursor()
+    # for file in fileList:
+    #     cu.execute("insert into UploadRecord values(null, '" + datetime.now().strftime(
+    #         "%Y/%m/%d %H:%M") + "', '" + file + "', '" + dcit_request['username'] + "', '" + resultFileName + "')")
+    # cu.close()
+    # cx.commit()
 
     response = {
         "success": True,
@@ -569,6 +545,8 @@ def compare():
         "nonDuplicateImgsData": nonDuplicateImgsData,
     }
     return jsonify(response)
+
+
 
 
 def phash(img):
@@ -623,6 +601,7 @@ def getExcelImgs(folderPath, file, imgsPath):
             img = img.convert("RGB")
             imgFileName = '_'.join([file, sheet, str(i+1)])+'.jpg'
             img.save(os.path.join(imgsPath, imgFileName))
+
 
 def getPDFImgs(folderPath, file, imgsPath):
     pageImgs = convert_from_path(os.path.join(
@@ -690,7 +669,6 @@ def getPDFImgs(folderPath, file, imgsPath):
             page_num = (str(pageNumber+1)).zfill(3)
             dst_filenm = '_'.join([file, 'Page'+page_num, str(i+1)])+'.jpg'
             cv2.imwrite(os.path.join(imgsPath, dst_filenm), img_crop)
-
 
 if __name__ == "__main__":
     app.run(debug=False)
